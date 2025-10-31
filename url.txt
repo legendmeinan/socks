@@ -1,0 +1,1 @@
+https://raw.githubusercontent.com/fyvri/fresh-proxy-list/archive/storage/classic/socks5.txt
