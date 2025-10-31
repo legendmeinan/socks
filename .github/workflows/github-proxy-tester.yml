@@ -42,7 +42,7 @@ jobs:
       id: create_release
       uses: actions/create-release@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.TOKEN }}
       with:
         tag_name: proxy-${{ steps.date.outputs.datetime }}
         release_name: Working Proxies - ${{ steps.date.outputs.date }}
@@ -79,7 +79,7 @@ jobs:
     - name: Upload working proxies
       uses: actions/upload-release-asset@v1
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./working_proxies.txt
@@ -92,4 +92,4 @@ jobs:
         keep_latest: 7  # 保留最近 7 个 release
         delete_tags: true
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.TOKEN }}
