@@ -16,7 +16,7 @@ import sys
 from datetime import datetime
 
 # 配置
-MAX_PROXIES = 20  # 🔥 最大读取代理数量限制
+MAX_PROXIES = 200  # 🔥 最大读取代理数量限制
 TEST_TARGETS = [
     ("www.google.com", 80),
     ("www.cloudflare.com", 80),
@@ -35,7 +35,7 @@ SPEED_TEST_ENABLED = True  # 是否启用速度测试
 SPEED_TEST_URL = "http://www.google.com/robots.txt"  # 速度测试 URL（小文件）
 SPEED_TEST_SIZE = 1024 * 50  # 下载 50KB 数据用于速度测试
 MAX_LATENCY = 3.0  # 最大延迟（秒），超过此值的代理被认为太慢
-MIN_SPEED = 100  # 最小速度（KB/s），低于此速度的代理被过滤
+MIN_SPEED = 10  # 最小速度（KB/s），低于此速度的代理被过滤
 
 
 class ProxyTester:
