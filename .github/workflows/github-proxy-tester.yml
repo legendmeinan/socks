@@ -44,7 +44,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.TOKEN }}
       with:
-        tag_name: proxy-${{ steps.date.outputs.datetime }}
+        tag_name: proxy-${{ steps.date.outputs.datetime }}-${{ github.run_number }}
+
         release_name: Working Proxies - ${{ steps.date.outputs.date }}
         body: |
           ## 🎯 可用的 SOCKS5 代理列表
