@@ -86,7 +86,17 @@ jobs:
         asset_path: ./working_proxies.txt
         asset_name: working_proxies.txt
         asset_content_type: text/plain
-
+   
+   - name: Upload working proxies
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./working_proxies_fast.txt
+        asset_name: working_proxies_fast.txt
+        asset_content_type: text/plain
+    
     - name: Clean up old releases
       uses: dev-drprasad/delete-older-releases@v0.3.2
       with:
