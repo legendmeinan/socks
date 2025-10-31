@@ -2,96 +2,75 @@ name: Test and Publish SOCKS5 Proxies
 
 on:
   schedule:
-    # 每天运行一次 (UTC 时间 00:00，即北京时间 08:00)
-    - cron: '0 0 * * *'
-  workflow_dispatch: # 允许手动触发
+    - cron: "0 0 * * *"  # 每天 UTC 00:00，即北京时间 08:00
+  workflow_dispatch:       # 支持手动触发
 
 permissions:
-  contents: write     
-  
+  contents: write
+
 jobs:
   test-proxies:
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 40
 
-  
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-    - name: Install dependencies
-      run: |
-        pip install requests pysocks
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pysocks
 
-    - name: Test proxies
-      run: |
-        python test_proxies.py
+      - name: Run SOCKS5 Proxy Tester
+        run: python3 test_proxies.py
 
-    - name: Generate release date
-      id: date
-      run: |
-        echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-        echo "datetime=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_OUTPUT
+      - name: Generate date
+        id: date
+        run: |
+          echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+          echo "datetime=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_OUTPUT
 
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.TOKEN }}
-      with:
-        tag_name: proxy-${{ steps.date.outputs.datetime }}-${{ github.run_number }}
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: proxy-${{ steps.date.outputs.datetime }}
+          name: "SOCKS5 Proxies - ${{ steps.date.outputs.date }}"
+          body: |
+            ## 🎯 可用的 SOCKS5 代理列表
+            
+            📅 测试时间: ${{ steps.date.outputs.date }}
+            ✅ 可用代理: $(wc -l < working_proxies.txt) 个
+            ⚡ 快速代理: $(wc -l < working_proxies_fast.txt) 个
+            
+            ### 📥 下载地址
+            - [working_proxies.txt](https://github.com/${{ github.repository }}/releases/latest/download/working_proxies.txt)
+            - [working_proxies_fast.txt](https://github.com/${{ github.repository }}/releases/latest/download/working_proxies_fast.txt)
+            - [working_proxies_stats.txt](https://github.com/${{ github.repository }}/releases/latest/download/working_proxies_stats.txt)
+            
+            ### 说明
+            - 简单格式: `IP:Port`
+            - 带认证: `username:password@IP:Port`
+            - 可直接用于 SOCKS5 客户端
+          files: |
+            working_proxies.txt
+            working_proxies_fast.txt
+            working_proxies_stats.txt
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
 
-        release_name: Working Proxies - ${{ steps.date.outputs.date }}
-        body: |
-          ## 🎯 可用的 SOCKS5 代理列表
-          
-          📅 测试时间: ${{ steps.date.outputs.date }}
-          ✅ 可用代理: $(wc -l < working_proxies.txt) 个
-          🚀 快速代理: $(wc -l < working_proxies_fast.txt) 个 (已按延迟排序)
-          
-          ### 📥 下载文件
-          - **working_proxies.txt** - 所有可用的代理
-          - **working_proxies_fast.txt** - 快速代理 (延迟≤3s, 速度≥10KB/s)
-          - **working_proxies_stats.txt** - 详细测试统计
-          
-          ### 使用方法
-          ```bash
-          # 下载所有可用代理
-          wget https://github.com/${{ github.repository }}/releases/latest/download/working_proxies.txt
-          
-          # 下载快速代理（推荐）
-          wget https://github.com/${{ github.repository }}/releases/latest/download/working_proxies_fast.txt
-          ```
-          
-          ### 格式说明
-          - 简单格式: `IP:Port`
-          - 带认证: `username:password@IP:Port`
-          - 完整格式: `socks5://IP:Port` 或 `socks5://username:password@IP:Port`
-          
-          快速代理列表带有速度注释: `代理地址  # 延迟(s) | 速度(KB/s)`
-        draft: false
-        prerelease: false
-
-   - name: Upload release assets
-     uses: softprops/action-gh-release@v2
-     with:
-       files: |
-         working_proxies.txt
-         working_proxies_fast.txt
-         working_proxies_stats.txt
-     env:
-       GITHUB_TOKEN: ${{ secrets.TOKEN }}
-
-   
-    - name: Clean up old releases
-      uses: dev-drprasad/delete-older-releases@v0.3.2
-      with:
-        keep_latest: 7  # 保留最近 7 个 release
-        delete_tags: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.TOKEN }}
+      - name: Clean up old releases
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          keep_latest: 5        # ✅ 保留最近 5 个版本
+          delete_tags: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
