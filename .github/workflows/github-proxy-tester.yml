@@ -2,10 +2,6 @@ name: Test and Publish SOCKS5 Proxies
 
 on:
   schedule:
-    # 每天运行name: Test and Publish SOCKS5 Proxies
-
-on:
-  schedule:
     # 每天运行一次 (UTC 时间 00:00，即北京时间 08:00)
     - cron: '0 0 * * *'
   workflow_dispatch: # 允许手动触发
@@ -139,14 +135,11 @@ jobs:
         echo "available=$AVAILABLE" >> $GITHUB_OUTPUT
         echo "fast=$FAST" >> $GITHUB_OUTPUT
 
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Create Release and Upload Assets
+      uses: softprops/action-gh-release@v1
       with:
         tag_name: proxy-${{ steps.date.outputs.datetime }}
-        release_name: Working Proxies - ${{ steps.date.outputs.date }}
+        name: Working Proxies - ${{ steps.date.outputs.date }}
         body: |
           ## 🎯 可用的 SOCKS5 代理列表
           
@@ -170,134 +163,24 @@ jobs:
           ```
           
           ### 格式说明
-          - 简单格式: `IP:Port`
-          - 带认证: `username:password@IP:Port`
-          - 完整格式: `socks5://IP:Port` 或 `socks5://username:password@IP:Port`
+          - 简单格式: IP:Port
+          - 带认证: username:password@IP:Port
+          - 完整格式: socks5://IP:Port 或 socks5://username:password@IP:Port
           
-          快速代理列表带有速度注释: `代理地址  # 延迟(s) | 速度(KB/s)`
+          快速代理列表带有速度注释: 代理地址 # 延迟(s) | 速度(KB/s)
+        files: |
+          working_proxies.txt
+          working_proxies_fast.txt
+          working_proxies_stats.txt
         draft: false
         prerelease: false
-
-    - name: Upload working proxies
-      uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./working_proxies.txt
-        asset_name: working_proxies.txt
-        asset_content_type: text/plain
-
-    - name: Upload fast proxies
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./working_proxies_fast.txt
-        asset_name: working_proxies_fast.txt
-        asset_content_type: text/plain
-    
-    - name: Upload stats
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./working_proxies_stats.txt
-        asset_name: working_proxies_stats.txt
-        asset_content_type: text/plain
 
     - name: Clean up old releases
       uses: dev-drprasad/delete-older-releases@v0.3.2
       with:
-        keep_latest: 7  # 保留最近 7 个 release
-        delete_tags: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
- (UTC 时间 00:00，即北京时间 08:00)
-    - cron: '0 0 * * *'
-  workflow_dispatch: # 允许手动触发
-
-jobs:
-  test-proxies:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-
-    - name: Install dependencies
-      run: |
-        pip install requests pysocks
-
-    - name: Test proxies
-      run: |
-        python test_proxies.py
-
-    - name: Generate release date
-      id: date
-      run: |
-        echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
-        echo "datetime=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_OUTPUT
-
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: proxy-${{ steps.date.outputs.datetime }}
-        release_name: Working Proxies - ${{ steps.date.outputs.date }}
-        body: |
-          ## 🎯 可用的 SOCKS5 代理列表
-          
-          📅 测试时间: ${{ steps.date.outputs.date }}
-          ✅ 可用代理: $(wc -l < working_proxies.txt) 个
-          🚀 快速代理: $(wc -l < working_proxies_fast.txt) 个 (已按延迟排序)
-          
-          ### 📥 下载文件
-          - **working_proxies.txt** - 所有可用的代理
-          - **working_proxies_fast.txt** - 快速代理 (延迟≤3s, 速度≥10KB/s)
-          - **working_proxies_stats.txt** - 详细测试统计
-          
-          ### 使用方法
-          ```bash
-          # 下载所有可用代理
-          wget https://github.com/${{ github.repository }}/releases/latest/download/working_proxies.txt
-          
-          # 下载快速代理（推荐）
-          wget https://github.com/${{ github.repository }}/releases/latest/download/working_proxies_fast.txt
-          ```
-          
-          ### 格式说明
-          - 简单格式: `IP:Port`
-          - 带认证: `username:password@IP:Port`
-          - 完整格式: `socks5://IP:Port` 或 `socks5://username:password@IP:Port`
-          
-          快速代理列表带有速度注释: `代理地址  # 延迟(s) | 速度(KB/s)`
-        draft: false
-        prerelease: false
-
-    - name: Upload working proxies
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./working_proxies.txt
-        asset_name: working_proxies.txt
-        asset_content_type: text/plain
-
-    - name: Clean up old releases
-      uses: dev-drprasad/delete-older-releases@v0.3.2
-      with:
-        keep_latest: 7  # 保留最近 7 个 release
+        keep_latest: 7
         delete_tags: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
