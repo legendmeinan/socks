@@ -16,14 +16,13 @@ import sys
 from datetime import datetime
 
 # 配置
-MAX_PROXIES = 100  # 🔥 最大读取代理数量限制
 TEST_TARGETS = [
     ("www.google.com", 80),
     ("www.cloudflare.com", 80),
     ("1.1.1.1", 80)
 ]  # 多个测试目标，增加可靠性
 TEST_TIMEOUT = 10  # 每个代理的测试超时时间（秒）
-MAX_WORKERS = 20  # 并发测试的最大线程数
+MAX_WORKERS = 30  # 并发测试的最大线程数
 URL_FILE = "url.txt"  # API 链接列表文件
 OUTPUT_FILE = "working_proxies.txt"  # 输出文件
 OUTPUT_FILE_FAST = "working_proxies_fast.txt"  # 快速代理输出文件
@@ -35,7 +34,7 @@ SPEED_TEST_ENABLED = True  # 是否启用速度测试
 SPEED_TEST_URL = "http://www.google.com/robots.txt"  # 速度测试 URL（小文件）
 SPEED_TEST_SIZE = 1024 * 50  # 下载 50KB 数据用于速度测试
 MAX_LATENCY = 3.0  # 最大延迟（秒），超过此值的代理被认为太慢
-MIN_SPEED = 1024  # 最小速度（KB/s），低于此速度的代理被过滤
+MIN_SPEED = 10.0  # 最小速度（KB/s），低于此速度的代理被过滤
 
 
 class ProxyTester:
@@ -47,7 +46,6 @@ class ProxyTester:
         self.total_tested = 0
         self.total_working = 0
         self.total_fast = 0
-        self.total_limited = 0  # 实际限制后的数量
         self.start_time = time.time()
         self.speed_results = {}  # 存储每个代理的速度测试结果
     
@@ -88,8 +86,8 @@ https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5
             f.write(example_content)
         print(f"✅ 已创建示例文件: {filename}")
     
-    def fetch_proxies_from_url(self, url: str, max_limit: int) -> List[str]:
-        """从 URL 获取代理列表，返回不超过 max_limit 的代理"""
+    def fetch_proxies_from_url(self, url: str) -> List[str]:
+        """从 URL 获取代理列表"""
         try:
             print(f"🔍 正在获取: {url}")
             
@@ -107,16 +105,9 @@ https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5
                 # 跳过空行和注释
                 if not line or line.startswith('#'):
                     continue
-                
                 proxies.append(line)
-                
-                # 达到限制后停止添加
-                if len(proxies) >= max_limit:
-                    break
             
-            fetched_count = len(proxies)
-            print(f"   ✅ 获取到 {fetched_count} 个代理" + 
-                  (f" (已限制到 {max_limit})" if fetched_count >= max_limit else ""))
+            print(f"   ✅ 获取到 {len(proxies)} 个代理")
             return proxies
         except requests.exceptions.Timeout:
             print(f"   ⏱️  超时: {url}")
@@ -426,13 +417,8 @@ https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5
             f.write("=" * 70 + "\n\n")
             f.write(f"测试时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
             f.write(f"耗时: {self.format_time(elapsed_time)}\n\n")
-            f.write(f"⚙️  最大代理限制: {MAX_PROXIES}\n")
             f.write(f"📥 获取代理总数: {self.total_fetched}\n")
             f.write(f"🔄 去重后数量: {self.total_unique}\n")
-            
-            if self.total_limited < self.total_unique:
-                f.write(f"⚠️  限制后数量: {self.total_limited}\n")
-            
             f.write(f"🧪 测试代理数: {self.total_tested}\n")
             f.write(f"✅ 可用代理数: {self.total_working}\n")
             
@@ -463,8 +449,7 @@ https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5
         print("=" * 70)
         print("🚀 SOCKS5 代理自动测试工具 (含速度测试)")
         print("=" * 70)
-        print(f"⏰ 开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"⚙️  最大代理限制: {MAX_PROXIES}\n")
+        print(f"⏰ 开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         
         # 读取 API URL 列表
         api_urls = self.read_api_urls(URL_FILE)
@@ -472,23 +457,13 @@ https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5
             print("❌ 没有找到有效的 API 链接")
             sys.exit(1)
         
-        # 从所有 URL 获取代理（带限制）
+        # 从所有 URL 获取代理
         print("📡 开始获取代理列表...")
         print("-" * 70)
         all_proxies = []
-        remaining_quota = MAX_PROXIES  # 剩余配额
-        
         for url in api_urls:
-            if remaining_quota <= 0:
-                print(f"⚠️  已达到最大代理数限制 ({MAX_PROXIES})，跳过剩余 API")
-                break
-            
-            proxies = self.fetch_proxies_from_url(url, remaining_quota)
+            proxies = self.fetch_proxies_from_url(url)
             all_proxies.extend(proxies)
-            remaining_quota = MAX_PROXIES - len(all_proxies)
-            
-            print(f"   📊 当前总数: {len(all_proxies)}/{MAX_PROXIES}")
-            
             time.sleep(1)  # 避免请求过快
         
         self.total_fetched = len(all_proxies)
@@ -502,21 +477,11 @@ https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5
         # 去重
         unique_proxies = list(set(all_proxies))
         self.total_unique = len(unique_proxies)
-        
-        # 再次应用限制（防止去重后超过限制）
-        if len(unique_proxies) > MAX_PROXIES:
-            print(f"\n⚠️  去重后仍有 {len(unique_proxies)} 个代理，限制到 {MAX_PROXIES} 个")
-            unique_proxies = unique_proxies[:MAX_PROXIES]
-        
-        self.total_limited = len(unique_proxies)
         self.total_tested = len(unique_proxies)
         
         print(f"\n📊 统计:")
         print(f"   - 获取总数: {self.total_fetched}")
         print(f"   - 去重后: {self.total_unique}")
-        if self.total_limited < self.total_unique:
-            print(f"   - 限制后: {self.total_limited}")
-        print(f"   - 待测试: {self.total_tested}")
         
         # 阶段 1: 测试可用性
         working_proxies = self.test_proxies_batch(unique_proxies)
@@ -535,7 +500,6 @@ https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5
         print("=" * 70)
         print("✅ 测试完成!")
         print("=" * 70)
-        print(f"⚙️  代理限制: {MAX_PROXIES}")
         print(f"⏱️  总耗时: {self.format_time(elapsed_time)}")
         print(f"📊 可用代理: {self.total_working}/{self.total_tested} ({(self.total_working/self.total_tested*100) if self.total_tested > 0 else 0:.2f}%)")
         
