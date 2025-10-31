@@ -6,51 +6,8 @@ on:
     - cron: '0 0 * * *'
   workflow_dispatch: # 允许手动触发
 
-# 添加权限配置
-permissions:
-  contents: write  # 允许创建 release 和上传资源
-
-env:
-  MAX_PROXIES: 200  # 最大读取代理数量
-
 jobs:
-  # 第一阶段：并发测试代理可用性（10个worker）
-  test-availability:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        worker_id: [0, 1, 2,3]
-      fail-fast: false  # 即使某个worker失败，其他继续运行
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-
-    - name: Install dependencies
-      run: |
-        pip install requests pysocks
-
-    - name: Test proxy availability (Worker ${{ matrix.worker_id }})
-      run: |
-        python test_availability.py ${{ matrix.worker_id }} 10 ${{ env.MAX_PROXIES }}
-      env:
-        PYTHONUNBUFFERED: 1  # 实时输出日志
-
-    - name: Upload available proxies
-      uses: actions/upload-artifact@v4
-      with:
-        name: available-proxies-${{ matrix.worker_id }}
-        path: available_proxies_${{ matrix.worker_id }}.txt
-        retention-days: 1
-
-  # 第二阶段：合并并测试速度
-  test-speed:
-    needs: test-availability
+  test-proxies:
     runs-on: ubuntu-latest
     
     steps:
@@ -66,60 +23,9 @@ jobs:
       run: |
         pip install requests pysocks
 
-    - name: Download all available proxies
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
-
-    - name: Merge available proxies
+    - name: Test proxies
       run: |
-        echo "🔄 合并所有可用代理..."
-        cat artifacts/available-proxies-*/available_proxies_*.txt > all_available_proxies.txt
-        # 去重
-        sort -u all_available_proxies.txt > merged_proxies.txt
-        COUNT=$(wc -l < merged_proxies.txt)
-        echo "✅ 合并完成，共 $COUNT 个可用代理"
-        cat merged_proxies.txt
-
-    - name: Test proxy speed
-      run: |
-        python test_speed.py
-      env:
-        PYTHONUNBUFFERED: 1
-
-    - name: Display results
-      run: |
-        echo "=========================================="
-        echo "测试结果统计"
-        echo "=========================================="
-        echo "最大读取代理数: ${{ env.MAX_PROXIES }}"
-        echo "所有可用代理: $(wc -l < working_proxies.txt)"
-        echo "快速代理: $(wc -l < working_proxies_fast.txt)"
-        echo "=========================================="
-        
-        echo "前10个最快的代理:"
-        head -15 working_proxies_fast.txt | tail -10
-
-    - name: Upload results
-      uses: actions/upload-artifact@v4
-      with:
-        name: final-results
-        path: |
-          working_proxies.txt
-          working_proxies_fast.txt
-          working_proxies_stats.txt
-        retention-days: 7
-
-  # 第三阶段：发布 Release
-  publish-release:
-    needs: test-speed
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Download final results
-      uses: actions/download-artifact@v4
-      with:
-        name: final-results
+        python test_proxies.py
 
     - name: Generate release date
       id: date
@@ -127,26 +33,20 @@ jobs:
         echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
         echo "datetime=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_OUTPUT
 
-    - name: Read stats for release body
-      id: stats
-      run: |
-        AVAILABLE=$(wc -l < working_proxies.txt)
-        FAST=$(wc -l < working_proxies_fast.txt)
-        echo "available=$AVAILABLE" >> $GITHUB_OUTPUT
-        echo "fast=$FAST" >> $GITHUB_OUTPUT
-
-    - name: Create Release and Upload Assets
-      uses: softprops/action-gh-release@v1
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: proxy-${{ steps.date.outputs.datetime }}
-        name: Working Proxies - ${{ steps.date.outputs.date }}
+        release_name: Working Proxies - ${{ steps.date.outputs.date }}
         body: |
           ## 🎯 可用的 SOCKS5 代理列表
           
           📅 测试时间: ${{ steps.date.outputs.date }}
-          📊 测试样本: 最多 ${{ env.MAX_PROXIES }} 个代理
-          ✅ 可用代理: ${{ steps.stats.outputs.available }} 个
-          🚀 快速代理: ${{ steps.stats.outputs.fast }} 个 (已按延迟排序)
+          ✅ 可用代理: $(wc -l < working_proxies.txt) 个
+          🚀 快速代理: $(wc -l < working_proxies_fast.txt) 个 (已按延迟排序)
           
           ### 📥 下载文件
           - **working_proxies.txt** - 所有可用的代理
@@ -163,24 +63,28 @@ jobs:
           ```
           
           ### 格式说明
-          - 简单格式: IP:Port
-          - 带认证: username:password@IP:Port
-          - 完整格式: socks5://IP:Port 或 socks5://username:password@IP:Port
+          - 简单格式: `IP:Port`
+          - 带认证: `username:password@IP:Port`
+          - 完整格式: `socks5://IP:Port` 或 `socks5://username:password@IP:Port`
           
-          快速代理列表带有速度注释: 代理地址 # 延迟(s) | 速度(KB/s)
-        files: |
-          working_proxies.txt
-          working_proxies_fast.txt
-          working_proxies_stats.txt
+          快速代理列表带有速度注释: `代理地址  # 延迟(s) | 速度(KB/s)`
         draft: false
         prerelease: false
+
+    - name: Upload working proxies
+      uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./working_proxies.txt
+        asset_name: working_proxies.txt
+        asset_content_type: text/plain
 
     - name: Clean up old releases
       uses: dev-drprasad/delete-older-releases@v0.3.2
       with:
-        keep_latest: 7
+        keep_latest: 7  # 保留最近 7 个 release
         delete_tags: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
