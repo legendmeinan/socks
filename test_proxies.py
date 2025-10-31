@@ -14,7 +14,7 @@ import socket
 import concurrent.futures
 from datetime import datetime
 
-MAX_PROXIES = 100
+MAX_PROXIES = 1000
 TEST_URL = "http://example.com/"
 TEST_TIMEOUT = 10
 MAX_WORKERS = 30
@@ -23,7 +23,7 @@ OUTPUT_FILE = "working_proxies.txt"
 OUTPUT_FILE_FAST = "working_proxies_fast.txt"
 STATS_FILE = "working_proxies_stats.txt"
 MAX_LATENCY = 3.0
-MIN_SPEED = 100
+MIN_SPEED = 10
 IN_GITHUB = os.getenv("GITHUB_ACTIONS") == "true"
 
 
