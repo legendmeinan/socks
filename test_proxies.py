@@ -16,7 +16,7 @@ import sys
 from datetime import datetime
 
 # 配置
-MAX_PROXIES = 20  # 🔥 最大读取代理数量限制
+MAX_PROXIES = 1000  # 🔥 最大读取代理数量限制
 TEST_TARGETS = [
     ("www.google.com", 80),
     ("www.cloudflare.com", 80),
