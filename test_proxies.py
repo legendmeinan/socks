@@ -16,7 +16,7 @@ import sys
 from datetime import datetime
 
 # 配置
-MAX_PROXIES = 200  # 🔥 最大读取代理数量限制
+MAX_PROXIES = 20  # 🔥 最大读取代理数量限制
 TEST_TARGETS = [
     ("www.google.com", 80),
     ("www.cloudflare.com", 80),
@@ -35,7 +35,7 @@ SPEED_TEST_ENABLED = True  # 是否启用速度测试
 SPEED_TEST_URL = "http://www.google.com/robots.txt"  # 速度测试 URL（小文件）
 SPEED_TEST_SIZE = 1024 * 50  # 下载 50KB 数据用于速度测试
 MAX_LATENCY = 3.0  # 最大延迟（秒），超过此值的代理被认为太慢
-MIN_SPEED = 10  # 最小速度（KB/s），低于此速度的代理被过滤
+MIN_SPEED = 100  # 最小速度（KB/s），低于此速度的代理被过滤
 
 
 class ProxyTester:
@@ -405,16 +405,11 @@ https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5
             for proxy in sorted(working_proxies):
                 f.write(proxy + '\n')
         
-        # 保存快速代理（带速度信息）
+        # 保存快速代理（纯净格式，不带速度注释）
         if SPEED_TEST_ENABLED and fast_proxies:
             with open(OUTPUT_FILE_FAST, 'w', encoding='utf-8') as f:
-                f.write("# 快速代理列表 (已按延迟排序)\n")
-                f.write("# 格式: 代理地址 | 延迟(s) | 速度(KB/s)\n\n")
                 for proxy in fast_proxies:
-                    result = self.speed_results.get(proxy, {})
-                    latency = result.get('latency', 0)
-                    speed = result.get('speed', 0)
-                    f.write(f"{proxy}  # {latency:.2f}s | {speed:.1f}KB/s\n")
+                    f.write(proxy + '\n')
         
         # 生成统计文件
         stats_file = filename.replace('.txt', '_stats.txt')
@@ -453,6 +448,17 @@ https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5
                 f.write(f"\n速度测试配置:\n")
                 f.write(f"  - 最大延迟: {MAX_LATENCY}s\n")
                 f.write(f"  - 最小速度: {MIN_SPEED}KB/s\n")
+                
+                # 添加快速代理的详细速度信息到统计文件
+                if fast_proxies:
+                    f.write(f"\n快速代理详细信息:\n")
+                    f.write("-" * 70 + "\n")
+                    for i, proxy in enumerate(fast_proxies, 1):
+                        result = self.speed_results.get(proxy, {})
+                        latency = result.get('latency', 0)
+                        speed = result.get('speed', 0)
+                        f.write(f"{i}. {proxy}\n")
+                        f.write(f"   延迟: {latency:.2f}s | 速度: {speed:.1f}KB/s\n")
             
             f.write("\n" + "=" * 70 + "\n")
         
@@ -549,7 +555,7 @@ https://api.proxyscrape.com/v2/?request=displayproxies&protocol=socks5
             self.save_results(working_proxies, fast_proxies, OUTPUT_FILE)
             print(f"💾 所有可用代理: {OUTPUT_FILE}")
             if SPEED_TEST_ENABLED and fast_proxies:
-                print(f"⚡ 快速代理列表: {OUTPUT_FILE_FAST}")
+                print(f"⚡ 快速代理列表: {OUTPUT_FILE_FAST} (纯净格式)")
         else:
             with open(OUTPUT_FILE, 'w') as f:
                 pass
