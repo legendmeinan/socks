@@ -17,7 +17,7 @@ import re
 import sys
 
 # 配置
-MAX_PROXIES = 1000
+MAX_PROXIES = 30
 TEST_TARGETS = [
     ("www.google.com", 80),
     ("www.cloudflare.com", 80),
@@ -31,7 +31,7 @@ MIN_SUCCESS_RATE = 0.5
 
 # 速度测试配置
 MAX_LATENCY = 3.0
-MIN_SPEED = 50
+MIN_SPEED = 1
 SPEED_TEST_SIZE = 1024 * 1000
 
 
