@@ -394,9 +394,8 @@ jobs:
             # 替换变量
             sed -i "s/\$total_count/$total_count/g" working_proxies_stats.txt
             sed -i "s/\$fast_count/$fast_count/g" working_proxies_stats.txt
-            sed -i "s/\$(date +'%Y-%m-%d %H:%M:%S')/$(date +'%Y-%m-%d %H:%M:%S')/g" working_proxies_stats.txt
-          fi_count"
-      
+            sed -i "s/\$(date +'%Y-%m-%d %H:%M:%S')/$(date +\"%Y-%m-%d %H:%M:%S\")/g" working_proxies_stats.txt
+           fi
       - name: Generate date
         id: date
         if: steps.merge.outputs.has_fast_proxies == 'true'
