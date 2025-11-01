@@ -1,0 +1,442 @@
+name: Test and Publish SOCKS5 Proxies (Parallel)
+
+on:
+  schedule:
+    - cron: "0 2 * * *"  # 每天 UTC 02:00
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  # ==================== 阶段 1: 分片测试可用性 ====================
+  test-availability-1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      has_results: ${{ steps.check.outputs.has_results }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pysocks
+      
+      - name: Test proxies (Shard 1/3)
+        run: |
+          python3 test_proxies_shard.py --shard 1 --total-shards 3 --stage availability
+      
+      - name: Check results
+        id: check
+        run: |
+          if [ -f working_proxies_shard1.txt ] && [ -s working_proxies_shard1.txt ]; then
+            echo "has_results=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_results=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Upload results
+        if: steps.check.outputs.has_results == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: availability-shard-1
+          path: working_proxies_shard1.txt
+          retention-days: 1
+
+  test-availability-2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      has_results: ${{ steps.check.outputs.has_results }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pysocks
+      
+      - name: Test proxies (Shard 2/3)
+        run: |
+          python3 test_proxies_shard.py --shard 2 --total-shards 3 --stage availability
+      
+      - name: Check results
+        id: check
+        run: |
+          if [ -f working_proxies_shard2.txt ] && [ -s working_proxies_shard2.txt ]; then
+            echo "has_results=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_results=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Upload results
+        if: steps.check.outputs.has_results == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: availability-shard-2
+          path: working_proxies_shard2.txt
+          retention-days: 1
+
+  test-availability-3:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      has_results: ${{ steps.check.outputs.has_results }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pysocks
+      
+      - name: Test proxies (Shard 3/3)
+        run: |
+          python3 test_proxies_shard.py --shard 3 --total-shards 3 --stage availability
+      
+      - name: Check results
+        id: check
+        run: |
+          if [ -f working_proxies_shard3.txt ] && [ -s working_proxies_shard3.txt ]; then
+            echo "has_results=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_results=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Upload results
+        if: steps.check.outputs.has_results == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: availability-shard-3
+          path: working_proxies_shard3.txt
+          retention-days: 1
+
+  # ==================== 阶段 2: 合并可用代理并分片测速 ====================
+  merge-and-prepare-speed-test:
+    needs: [test-availability-1, test-availability-2, test-availability-3]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      has_proxies: ${{ steps.split.outputs.has_proxies }}
+    steps:
+      - name: Download all availability results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: availability-shard-*
+          merge-multiple: true
+      
+      - name: Merge and split for speed test
+        id: split
+        run: |
+          # 合并所有可用代理
+          cat working_proxies_shard*.txt 2>/dev/null | sort -u > all_working_proxies.txt || touch all_working_proxies.txt
+          
+          total_proxies=$(wc -l < all_working_proxies.txt)
+          echo "✅ 可用代理总数: $total_proxies"
+          
+          if [ "$total_proxies" -eq 0 ]; then
+            echo "has_proxies=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "has_proxies=true" >> $GITHUB_OUTPUT
+          
+          # 分成3份用于速度测试
+          proxies_per_shard=$(( (total_proxies + 2) / 3 ))
+          
+          split -l $proxies_per_shard all_working_proxies.txt speed_shard_
+          
+          # 重命名分片文件
+          i=1
+          for file in speed_shard_*; do
+            mv "$file" "speed_test_shard${i}.txt"
+            count=$(wc -l < "speed_test_shard${i}.txt")
+            echo "分片 $i: $count 个代理"
+            i=$((i + 1))
+          done
+      
+      - name: Upload speed test shards
+        if: steps.split.outputs.has_proxies == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: speed-test-shards
+          path: speed_test_shard*.txt
+          retention-days: 1
+
+  # ==================== 阶段 3: 并行速度测试 ====================
+  test-speed-1:
+    needs: merge-and-prepare-speed-test
+    if: needs.merge-and-prepare-speed-test.outputs.has_proxies == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      has_results: ${{ steps.check.outputs.has_results }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pysocks
+      
+      - name: Download speed test shard
+        uses: actions/download-artifact@v4
+        with:
+          name: speed-test-shards
+      
+      - name: Test speed (Shard 1/3)
+        run: |
+          if [ -f speed_test_shard1.txt ]; then
+            python3 test_proxies_shard.py --input speed_test_shard1.txt --output fast_proxies_shard1.txt --stage speed
+          fi
+      
+      - name: Check results
+        id: check
+        run: |
+          if [ -f fast_proxies_shard1.txt ] && [ -s fast_proxies_shard1.txt ]; then
+            echo "has_results=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_results=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Upload results
+        if: steps.check.outputs.has_results == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: speed-shard-1
+          path: fast_proxies_shard1.txt
+          retention-days: 1
+
+  test-speed-2:
+    needs: merge-and-prepare-speed-test
+    if: needs.merge-and-prepare-speed-test.outputs.has_proxies == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      has_results: ${{ steps.check.outputs.has_results }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pysocks
+      
+      - name: Download speed test shard
+        uses: actions/download-artifact@v4
+        with:
+          name: speed-test-shards
+      
+      - name: Test speed (Shard 2/3)
+        run: |
+          if [ -f speed_test_shard2.txt ]; then
+            python3 test_proxies_shard.py --input speed_test_shard2.txt --output fast_proxies_shard2.txt --stage speed
+          fi
+      
+      - name: Check results
+        id: check
+        run: |
+          if [ -f fast_proxies_shard2.txt ] && [ -s fast_proxies_shard2.txt ]; then
+            echo "has_results=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_results=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Upload results
+        if: steps.check.outputs.has_results == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: speed-shard-2
+          path: fast_proxies_shard2.txt
+          retention-days: 1
+
+  test-speed-3:
+    needs: merge-and-prepare-speed-test
+    if: needs.merge-and-prepare-speed-test.outputs.has_proxies == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      has_results: ${{ steps.check.outputs.has_results }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pysocks
+      
+      - name: Download speed test shard
+        uses: actions/download-artifact@v4
+        with:
+          name: speed-test-shards
+      
+      - name: Test speed (Shard 3/3)
+        run: |
+          if [ -f speed_test_shard3.txt ]; then
+            python3 test_proxies_shard.py --input speed_test_shard3.txt --output fast_proxies_shard3.txt --stage speed
+          fi
+      
+      - name: Check results
+        id: check
+        run: |
+          if [ -f fast_proxies_shard3.txt ] && [ -s fast_proxies_shard3.txt ]; then
+            echo "has_results=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_results=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Upload results
+        if: steps.check.outputs.has_results == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: speed-shard-3
+          path: fast_proxies_shard3.txt
+          retention-days: 1
+
+  # ==================== 阶段 4: 合并结果并发布 ====================
+  merge-and-publish:
+    needs: [test-speed-1, test-speed-2, test-speed-3]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Download all results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-shard-*"
+          merge-multiple: true
+        continue-on-error: true
+      
+      - name: Merge all results
+        id: merge
+        run: |
+          # 合并所有可用代理
+          cat working_proxies_shard*.txt 2>/dev/null | sort -u > working_proxies.txt || touch working_proxies.txt
+          
+          # 合并所有快速代理
+          cat fast_proxies_shard*.txt 2>/dev/null | sort -u > working_proxies_fast.txt || touch working_proxies_fast.txt
+          
+          total_count=$(wc -l < working_proxies.txt 2>/dev/null || echo 0)
+          fast_count=$(wc -l < working_proxies_fast.txt 2>/dev/null || echo 0)
+          
+          echo "total=$total_count" >> $GITHUB_OUTPUT
+          echo "fast=$fast_count" >> $GITHUB_OUTPUT
+          
+          echo "📊 统计结果:"
+          echo "   ✅ 可用代理: $total_count 个"
+          echo "   ⚡ 快速代理: $fast_count 个"
+          
+          if [ "$fast_count" -ge 3 ]; then
+            echo "has_fast_proxies=true" >> $GITHUB_OUTPUT
+            echo "✅ 快速代理数量充足 (≥3)，将创建 Release"
+          else
+            echo "has_fast_proxies=false" >> $GITHUB_OUTPUT
+            echo "⚠️ 快速代理不足 ($fast_count < 3)，跳过 Release 创建"
+            echo "❌ 工作流将停止，不会发布任何内容"
+          fi
+          
+          # 生成统计文件（仅在有快速代理时）
+          if [ "$fast_count" -gt 0 ]; then
+            cat > working_proxies_stats.txt << EOF
+================================================================================
+SOCKS5 代理测试统计报告 (并行测试)
+================================================================================
+
+测试时间: $(date +'%Y-%m-%d %H:%M:%S')
+测试方式: 3并行 (可用性) + 3并行 (速度)
+
+✅ 可用代理: $total_count 个
+⚡ 快速代理: $fast_count 个
+
+================================================================================
+EOF
+          fi_count"
+      
+      - name: Generate date
+        id: date
+        if: steps.merge.outputs.has_fast_proxies == 'true'
+        run: |
+          echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+          echo "datetime=$(date +'%Y-%m-%d_%H-%M-%S')" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        if: steps.merge.outputs.has_fast_proxies == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: proxy-${{ steps.date.outputs.datetime }}
+          name: "SOCKS5 Proxies - ${{ steps.date.outputs.date }}"
+          body: |
+            ## 🎯 可用的 SOCKS5 代理列表 (并行测试)
+            
+            📅 测试时间: ${{ steps.date.outputs.date }}
+            ✅ 可用代理: ${{ steps.merge.outputs.total }} 个
+            ⚡ 快速代理: ${{ steps.merge.outputs.fast }} 个
+            🚀 测试方式: 3并行可用性测试 + 3并行速度测试
+            
+            ### 📥 下载地址
+            - [working_proxies.txt](https://github.com/${{ github.repository }}/releases/latest/download/working_proxies.txt) - 所有可用代理
+            - [working_proxies_fast.txt](https://github.com/${{ github.repository }}/releases/latest/download/working_proxies_fast.txt) - 快速代理
+            - [working_proxies_stats.txt](https://github.com/${{ github.repository }}/releases/latest/download/working_proxies_stats.txt) - 统计信息
+            
+            ### 📖 格式说明
+            - 简单格式: `IP:Port`
+            - 带认证: `username:password@IP:Port`
+            - 可直接用于 SOCKS5 客户端
+          files: |
+            working_proxies.txt
+            working_proxies_fast.txt
+            working_proxies_stats.txt
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
+      
+      - name: Clean up old releases
+        if: steps.merge.outputs.has_fast_proxies == 'true'
+        uses: dev-drprasad/delete-older-releases@v0.3.2
+        with:
+          keep_latest: 5
+          delete_tags: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN }}
