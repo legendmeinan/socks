@@ -53,7 +53,7 @@ jobs:
 
   test-availability-2:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     outputs:
       has_results: ${{ steps.check.outputs.has_results }}
     steps:
@@ -93,7 +93,7 @@ jobs:
 
   test-availability-3:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     outputs:
       has_results: ${{ steps.check.outputs.has_results }}
     steps:
@@ -188,7 +188,7 @@ jobs:
     needs: merge-and-prepare-speed-test
     if: needs.merge-and-prepare-speed-test.outputs.has_proxies == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60
     outputs:
       has_results: ${{ steps.check.outputs.has_results }}
     steps:
@@ -237,7 +237,7 @@ jobs:
     needs: merge-and-prepare-speed-test
     if: needs.merge-and-prepare-speed-test.outputs.has_proxies == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60
     outputs:
       has_results: ${{ steps.check.outputs.has_results }}
     steps:
@@ -286,7 +286,7 @@ jobs:
     needs: merge-and-prepare-speed-test
     if: needs.merge-and-prepare-speed-test.outputs.has_proxies == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 60
     outputs:
       has_results: ${{ steps.check.outputs.has_results }}
     steps:
