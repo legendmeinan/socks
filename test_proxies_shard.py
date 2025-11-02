@@ -17,7 +17,7 @@ import re
 import sys
 
 # 配置
-MAX_PROXIES = 10000
+MAX_PROXIES = 3000
 TEST_TARGETS = [
     ("www.google.com", 80),
     ("www.cloudflare.com", 80),
