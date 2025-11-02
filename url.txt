@@ -1,6 +1,6 @@
-https://raw.githubusercontent.com/vmheaven/VMHeaven-Free-Proxy-Updated/refs/heads/main/socks5.txt
-https://raw.githubusercontent.com/Sage520/Proxy-List/main/socks5.txt
-https://raw.githubusercontent.com/fyvri/fresh-proxy-list/archive/storage/classic/socks5.txt
 https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/socks5.txt
 https://www.proxy-list.download/api/v1/get?type=socks5
 https://raw.githubusercontent.com/hookzof/socks5_list/master/proxy.txt
+https://raw.githubusercontent.com/vmheaven/VMHeaven-Free-Proxy-Updated/refs/heads/main/socks5.txt
+https://raw.githubusercontent.com/Sage520/Proxy-List/main/socks5.txt
+https://raw.githubusercontent.com/fyvri/fresh-proxy-list/archive/storage/classic/socks5.txt
