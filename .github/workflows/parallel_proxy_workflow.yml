@@ -13,7 +13,7 @@ jobs:
   # ==================== 阶段 1: 分片测试可用性 ====================
   test-availability-1:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
     outputs:
       has_results: ${{ steps.check.outputs.has_results }}
     steps:
