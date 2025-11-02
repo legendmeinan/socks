@@ -2,7 +2,7 @@ name: Test and Publish SOCKS5 Proxies (Parallel)
 
 on:
   schedule:
-    - cron: "0 2 * * *"  # 每天 UTC 02:00
+    - cron: "0 1 * * *"  # 每天 UTC 02:00
   workflow_dispatch:
 
 permissions:
